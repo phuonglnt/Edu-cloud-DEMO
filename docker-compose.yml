@@ -1,0 +1,76 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: educloud-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: moodle
+      POSTGRES_USER: moodle
+      POSTGRES_PASSWORD: moodle_password
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - educloud
+  moodle:
+    build:                                         # ajout Phuong
+      context: .                                   # ajout Phuong
+      args:                                        # ajout Phuong
+        http_proxy: http://cache.univ-pau.fr:3128  # ajout Phuong
+        https_proxy: http://cache.univ-pau.fr:3128 # ajout Phuong
+    image: educloud-moodle:4.5.14
+    container_name: educloud-moodle
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    depends_on:
+      - postgres
+    environment:
+      MOODLE_DB_TYPE: pgsql
+      MOODLE_DB_HOST: postgres
+      MOODLE_DB_PORT: 5432
+      MOODLE_DB_NAME: moodle
+      MOODLE_DB_USER: moodle
+      MOODLE_DB_PASSWORD: moodle_password
+      MOODLE_URL: http://10.3.16.187:8080          # modifié Phuong (avant : http://localhost:8080)
+    volumes:
+      - moodle_data:/var/www/moodledata
+    networks:
+      - educloud
+
+  # ===== DÉBUT AJOUT PHUONG =====
+  open-webui:
+    image: ghcr.io/open-webui/open-webui:main
+    ports:
+      - "3001:8080"
+    volumes:
+      - open-webui:/app/backend/data
+    environment:
+      - OPENAI_API_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - HTTPS_PROXY=http://cache.univ-pau.fr:3128
+      - https_proxy=http://cache.univ-pau.fr:3128
+      - RAG_EMBEDDING_ENGINE=openai
+      - RAG_EMBEDDING_MODEL=models/gemini-embedding-001
+    restart: always
+
+  quiz-api:
+    build: ./quiz-api
+    ports:
+      - "8001:8000"
+    environment:
+      - ASSISTANT_URL=http://open-webui:8080
+      - ASSISTANT_API_KEY=${ASSISTANT_API_KEY}
+      - NO_PROXY=open-webui,localhost,127.0.0.1
+      - no_proxy=open-webui,localhost,127.0.0.1
+      - KNOWLEDGE_ID=6d73717b-cd21-4ba2-a82b-5dc4852080e4
+    depends_on:
+      - open-webui
+    restart: always
+  # ===== FIN AJOUT PHUONG =====
+
+volumes:
+  postgres_data:
+  moodle_data:
+  open-webui:                                      # ajout Phuong
+networks:
+  educloud:
