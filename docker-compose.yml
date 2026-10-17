@@ -14,9 +14,9 @@ services:
   moodle:
     build:                                         # ajout Phuong
       context: .                                   # ajout Phuong
-      args:                                        # ajout Phuong
-        http_proxy: http://cache.univ-pau.fr:3128  # ajout Phuong
-        https_proxy: http://cache.univ-pau.fr:3128 # ajout Phuong
+#      args:                                        # ajout Phuong
+#        http_proxy: http://cache.univ-pau.fr:3128  # ajout Phuong
+#        https_proxy: http://cache.univ-pau.fr:3128 # ajout Phuong
     image: educloud-moodle:4.5.14
     container_name: educloud-moodle
     restart: unless-stopped
@@ -31,9 +31,10 @@ services:
       MOODLE_DB_NAME: moodle
       MOODLE_DB_USER: moodle
       MOODLE_DB_PASSWORD: moodle_password
-      MOODLE_URL: http://10.3.16.187:8080          # modifié Phuong (avant : http://localhost:8080)
+#      MOODLE_URL: http://10.3.16.187:8080          # modifié Phuong (avant : http://localhost:8080)
+      MOODLE_URL: http://localhost:8080
     volumes:
-      - moodle_data:/var/www/moodledata
+      - moodle_data:/moodledata
     networks:
       - educloud
 
@@ -47,14 +48,18 @@ services:
     environment:
       - OPENAI_API_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai
       - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - HTTPS_PROXY=http://cache.univ-pau.fr:3128
-      - https_proxy=http://cache.univ-pau.fr:3128
-      - RAG_EMBEDDING_ENGINE=openai
-      - RAG_EMBEDDING_MODEL=models/gemini-embedding-001
+ #     - HTTPS_PROXY=http://cache.univ-pau.fr:3128
+ #     - https_proxy=http://cache.univ-pau.fr:3128
+ #     - RAG_EMBEDDING_ENGINE=openai
+ #     - RAG_EMBEDDING_MODEL=models/gemini-embedding-001
     restart: always
 
   quiz-api:
-    build: ./quiz-api
+    build: 
+      context: ./quiz-api
+      args:
+        http_proxy: http://cache.univ-pau.fr:3128
+        https_proxy: http://cache.univ-pau.fr:3128
     ports:
       - "8001:8000"
     environment:
