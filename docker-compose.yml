@@ -9,8 +9,6 @@ services:
       POSTGRES_PASSWORD: moodle_password
     volumes:
       - postgres_data:/var/lib/postgresql/data
-    networks:
-      - educloud
   moodle:
     build:                                         # ajout Phuong
       context: .                                   # ajout Phuong
@@ -35,8 +33,6 @@ services:
       MOODLE_URL: http://localhost:8080
     volumes:
       - moodle_data:/moodledata
-    networks:
-      - educloud
 
   # ===== DÉBUT AJOUT PHUONG =====
   open-webui:
@@ -67,15 +63,33 @@ services:
       - ASSISTANT_API_KEY=${ASSISTANT_API_KEY}
       - NO_PROXY=open-webui,localhost,127.0.0.1
       - no_proxy=open-webui,localhost,127.0.0.1
-      - KNOWLEDGE_ID=6d73717b-cd21-4ba2-a82b-5dc4852080e4
     depends_on:
       - open-webui
     restart: always
+
+  sync-moodle:
+    build: ./sync-moodle
+    environment:
+      - DB_HOST=postgres
+      - DB_NAME=moodle
+      - DB_USER=moodle
+      - DB_PASSWORD=moodle_password
+      - ASSISTANT_URL=http://open-webui:8080
+      - ASSISTANT_API_KEY=${ASSISTANT_API_KEY}
+      - MOODLE_DATA=/moodledata
+      - SYNC_INTERVAL=30
+      - NO_PROXY=open-webui,postgres,localhost,127.0.0.1
+      - no_proxy=open-webui,postgres,localhost,127.0.0.1
+    volumes:
+      - moodle_data:/moodledata:ro
+    depends_on:
+      - postgres
+      - open-webui
+    restart: always
+
   # ===== FIN AJOUT PHUONG =====
 
 volumes:
   postgres_data:
   moodle_data:
   open-webui:                                      # ajout Phuong
-networks:
-  educloud:
