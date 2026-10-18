@@ -1,5 +1,7 @@
 # Edu-cloud DEMO
 
+*[Version française](README.fr.md)*
+
 LLM-based teaching assistant integrated into Moodle.
 
 - Students ask questions and get answers built from the course materials, with the source cited. 
