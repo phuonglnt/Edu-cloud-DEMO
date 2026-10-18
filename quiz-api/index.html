@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Générateur de quiz</title>
+<style>
+  body {
+    margin: 0;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #fff;
+    color: #000;
+    font-family: Georgia, serif;
+    font-size: 16px;
+    line-height: 1.6;
+  }
+
+  main { width: 100%; max-width: 34rem; padding: 3rem 1.5rem; }
+
+  h1 {
+    font-size: 1.6rem;
+    font-weight: normal;
+    text-align: center;
+    margin: 0 0 2.5rem;
+  }
+
+  label { display: block; font-size: .85rem; margin: 1.25rem 0 .3rem; }
+
+  select, input {
+    width: 100%;
+    font: inherit;
+    color: #000;
+    background: #fff;
+    border: 1px solid #000;
+    padding: .5rem;
+    border-radius: 0;
+  }
+
+  button {
+    width: 100%;
+    font: inherit;
+    color: #fff;
+    background: #000;
+    border: 1px solid #000;
+    padding: .6rem;
+    margin-top: 2rem;
+    cursor: pointer;
+  }
+
+  button:hover { color: #000; background: #fff; }
+  button:disabled { opacity: .5; cursor: progress; }
+
+  p.etat { margin-top: 2rem; font-size: .9rem; }
+
+  #resultat { margin-top: 2rem; white-space: pre-wrap; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Générateur de quiz</h1>
+
+  <form id="formulaire">
+    <label for="cours">Cours</label>
+    <select id="cours" required><option value="">Chargement…</option></select>
+
+    <label for="nombre">Nombre de questions</label>
+    <input id="nombre" type="number" value="5" min="1" max="10" required>
+
+    <label for="sujet">Thème</label>
+    <input id="sujet" value="le cours" required>
+
+    <button type="submit" id="bouton">Générer le quiz</button>
+  </form>
+
+  <p class="etat" id="etat"></p>
+  <div id="resultat"></div>
+</main>
+
+<script>
+const champCours = document.getElementById("cours");
+const etat = document.getElementById("etat");
+const resultat = document.getElementById("resultat");
+const bouton = document.getElementById("bouton");
+
+async function chargerCours() {
+  try {
+    const cours = await (await fetch("/cours")).json();
+    champCours.innerHTML = cours.length
+      ? cours.map((n) => `<option>${n}</option>`).join("")
+      : '<option value="">Aucun cours</option>';
+  } catch {
+    champCours.innerHTML = '<option value="">Indisponible</option>';
+    etat.textContent = "La liste des cours n'a pas pu être chargée.";
+  }
+}
+
+document.getElementById("formulaire").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  resultat.textContent = "";
+  bouton.disabled = true;
+  etat.textContent = "Génération en cours, cela prend une vingtaine de secondes.";
+
+  try {
+    const reponse = await fetch("/quiz", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        cours: champCours.value,
+        sujet: document.getElementById("sujet").value,
+        nombre: Number(document.getElementById("nombre").value),
+      }),
+    });
+    const donnees = await reponse.json();
+
+    if (reponse.ok) {
+      etat.textContent = "";
+      resultat.textContent = donnees.quiz.join("\n");
+    } else {
+      etat.textContent = donnees.detail || `Erreur ${reponse.status}`;
+    }
+  } catch {
+    etat.textContent = "Le service n'a pas répondu.";
+  } finally {
+    bouton.disabled = false;
+  }
+});
+
+chargerCours();
+</script>
+</body>
+</html>
