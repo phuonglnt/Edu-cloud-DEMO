@@ -1,5 +1,7 @@
 # Edu-cloud DEMO
 
+*[English version](README.md)*
+
 Assistant pédagogique basé sur un LLM, intégré à Moodle.
 
 - Les étudiants posent leurs questions et reçoivent une réponse construite à partir des supports de cours, avec la source citée.
