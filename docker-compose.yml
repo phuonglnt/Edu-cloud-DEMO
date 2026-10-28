@@ -89,6 +89,37 @@ services:
 
   # ===== FIN AJOUT PHUONG =====
 
+
+  # ===== AJOUT MOHAMMED =====
+  stats-api:
+    build:
+      context: ./stats-api
+      args:
+        http_proxy: http://cache.univ-pau.fr:3128
+        https_proxy: http://cache.univ-pau.fr:3128
+    ports:
+      - "8002:8000"
+    environment:
+      - PYTHONUNBUFFERED=1
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=moodle
+      - DB_USER=moodle
+      - DB_PASSWORD=moodle_password
+      - ASSISTANT_URL=http://open-webui:8080
+      - ASSISTANT_API_KEY=${ASSISTANT_API_KEY}
+      - LLM_BASE_URL=http://open-webui:8080/v1
+      - LLM_API_KEY=${ASSISTANT_API_KEY}
+      - LLM_MODEL=gemini-2.0-flash
+      - NO_PROXY=open-webui,postgres,localhost,127.0.0.1
+      - no_proxy=open-webui,postgres,localhost,127.0.0.1
+    depends_on:
+      - postgres
+      - open-webui
+    restart: always
+
+  # ===== FIN AJOUT MOHAMMED =====
+
 volumes:
   postgres_data:
   moodle_data:
