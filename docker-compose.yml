@@ -53,9 +53,9 @@ services:
   quiz-api:
     build: 
       context: ./quiz-api
-      args:
-        http_proxy: http://cache.univ-pau.fr:3128
-        https_proxy: http://cache.univ-pau.fr:3128
+#      args:
+#        http_proxy: http://cache.univ-pau.fr:3128
+#        https_proxy: http://cache.univ-pau.fr:3128
     ports:
       - "8001:8000"
     environment:
@@ -94,9 +94,9 @@ services:
   stats-api:
     build:
       context: ./stats-api
-      args:
-        http_proxy: http://cache.univ-pau.fr:3128
-        https_proxy: http://cache.univ-pau.fr:3128
+#      args:
+#        http_proxy: http://cache.univ-pau.fr:3128
+#        https_proxy: http://cache.univ-pau.fr:3128
     ports:
       - "8002:8000"
     environment:
