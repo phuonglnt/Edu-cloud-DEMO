@@ -181,8 +181,8 @@ async def get_stats():
             # Statistiques globales
             cursor.execute("SELECT COUNT(*) as count FROM mdl_user")
             total_utilisateurs = cursor.fetchone()['count']
-
-            cursor.execute("SELECT COUNT(*) as count FROM mdl_course")
+            # Nouvelles statistiques : Cours visibles (id > 1 pour exclure le cours "Site principal")
+            cursor.execute("SELECT COUNT(*) as count FROM mdl_course WHERE id > 1 AND visible = 1")
             total_cours = cursor.fetchone()['count']
 
             # Nouvelles statistiques : Utilisateurs actifs (non supprimés, non suspendus)

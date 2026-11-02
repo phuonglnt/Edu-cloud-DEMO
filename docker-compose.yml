@@ -108,9 +108,9 @@ services:
       - DB_PASSWORD=moodle_password
       - ASSISTANT_URL=http://open-webui:8080
       - ASSISTANT_API_KEY=${ASSISTANT_API_KEY}
-      - LLM_BASE_URL=http://open-webui:8080/v1
+      - LLM_BASE_URL=http://open-webui:8080/api
       - LLM_API_KEY=${ASSISTANT_API_KEY}
-      - LLM_MODEL=gemini-2.0-flash
+      - LLM_MODEL=models/models/gemma-4-26b-a4b-it
       - NO_PROXY=open-webui,postgres,localhost,127.0.0.1
       - no_proxy=open-webui,postgres,localhost,127.0.0.1
     depends_on:
