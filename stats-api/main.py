@@ -162,15 +162,28 @@ import httpx
 ASSISTANT_URL = os.getenv("ASSISTANT_URL", "http://open-webui:8080")
 ASSISTANT_API_KEY = os.getenv("ASSISTANT_API_KEY", "")
 
-
+#######################
 async def compter_questions():
     headers = {"Authorization": f"Bearer {ASSISTANT_API_KEY}"}
     async with httpx.AsyncClient(timeout=30) as client:
         reponse = await client.get(f"{ASSISTANT_URL}/api/v1/chats/all/db", headers=headers)
-        print(f"[compter_questions] status={reponse.status_code} body={reponse.text[:200]}")
         reponse.raise_for_status()
-        return len(reponse.json())
+        chats = reponse.json()
 
+        par_utilisateur = {}
+        total = 0
+        for chat in chats:
+            uid = chat.get("user_id", "inconnu")
+            messages = chat.get("chat", {}).get("history", {}).get("messages", {})
+            nb_questions = sum(1 for m in messages.values() if m.get("role") == "user")
+            par_utilisateur[uid] = par_utilisateur.get(uid, 0) + nb_questions
+            total += nb_questions
+
+        return {
+            "total": total,
+            "par_utilisateur": par_utilisateur
+        }
+########################
 
 @app.get("/api/stats")
 async def get_stats():
@@ -195,10 +208,13 @@ async def get_stats():
 
      ##########
         try:
-            questions_total = await compter_questions()
+            questions = await compter_questions()
+            questions_total = questions["total"]
+            questions_par_utilisateur = questions["par_utilisateur"]
         except httpx.HTTPError as e:
             print(f"[compter_questions] ERREUR: {type(e).__name__}: {e}")
             questions_total = None
+            questions_par_utilisateur = None
     ###########
     
         return {
@@ -211,7 +227,8 @@ async def get_stats():
                 "categories_total": total_categories
             },
             "assistant": {
-                "questions_total": questions_total
+                "questions_total": questions_total,
+                "questions_par_utilisateur": questions_par_utilisateur
             }
         }
     except psycopg.Error:
