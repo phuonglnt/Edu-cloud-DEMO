@@ -162,6 +162,23 @@ import httpx
 ASSISTANT_URL = os.getenv("ASSISTANT_URL", "http://open-webui:8080")
 ASSISTANT_API_KEY = os.getenv("ASSISTANT_API_KEY", "")
 
+
+#######################
+# Gestion des quotas d'utilisation de l'assistant IA
+
+LIMITES_QUOTA = {"FREE": 5, "GOLD": 50, "PLATINUM": None} 
+TIERS_UTILISATEURS = {}  # user_id -> tier ; par défaut "FREE" si absent
+
+def get_tier(user_id: str) -> str:
+    return TIERS_UTILISATEURS.get(user_id, "FREE")
+
+def quota_depasse(user_id: str, nb_questions: int) -> bool:
+    tier = get_tier(user_id)
+    limite = LIMITES_QUOTA[tier]
+    if limite is None:
+        return False
+    return nb_questions >= limite
+
 #######################
 async def compter_questions():
     headers = {"Authorization": f"Bearer {ASSISTANT_API_KEY}"}
@@ -236,6 +253,21 @@ async def get_stats():
     finally:
         conn.close()
 
+@app.get("/api/subscription/{user_id}")
+async def get_subscription(user_id: str):
+    stats = await get_stats()
+    nb_questions = stats["assistant"]["questions_par_utilisateur"].get(user_id, 0)
+    tier = get_tier(user_id)
+    limite = LIMITES_QUOTA[tier]
+    return {
+        "user_id": user_id,
+        "tier": tier,
+        "questions_utilisees": nb_questions,
+        "limite": limite,
+        "quota_depasse": quota_depasse(user_id, nb_questions)
+    }
+
+
  ###############################       
 
 # "405 Method Not Allowed" nghĩa là: 
@@ -245,9 +277,16 @@ async def get_stats():
 # @app.get("/api/analyse")
 # def analyse_par_ia(): 
 
-@app.api_route("/api/analyse", methods=["GET", "POST"]) # cho phép cả GET và POST để tránh lỗi 405
-async def analyse_par_ia():
+@app.api_route("/api/analyse", methods=["GET", "POST"])
+async def analyse_par_ia(user_id: str = "demo-admin"):
     stats = await get_stats()
+    nb_questions = stats["assistant"]["questions_par_utilisateur"].get(user_id, 0)
+    if quota_depasse(user_id, nb_questions):
+        raise HTTPException(
+            status_code=403,
+            detail=f"Quota {get_tier(user_id)} atteint ({nb_questions}/{LIMITES_QUOTA[get_tier(user_id)]} questions). Veuillez passer au niveau supérieur."
+        )
+    
     prompt = (
         "Agis comme un expert pédagogique. Voici les statistiques brutes extraites de notre "
         f"base de données Moodle : {stats}. Rédige un court bilan professionnel de 2 phrases "
@@ -261,10 +300,13 @@ async def analyse_par_ia():
             max_tokens=500,
             temperature=0.7
         )
+        
         texte_ia = response.choices[0].message.content
         if not texte_ia:
             raise HTTPException(status_code=502, detail="Le modèle n'a retourné aucune analyse.")
 
+        import re
+        texte_ia = re.sub(r"<thought>.*?</thought>", "", texte_ia, flags=re.DOTALL).strip()
         return {
             "donnees_brutes": stats,
             "rapport_ia": texte_ia.strip()

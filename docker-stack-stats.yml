@@ -1,0 +1,28 @@
+services:
+  stats-api:
+    image: ple002/educloud-stats-api:v1.1
+    ports:
+      - target: 8000
+        published: 8002
+        mode: host
+    environment:
+      - DB_HOST=10.3.16.187
+      - DB_PORT=5432
+      - DB_NAME=moodle
+      - DB_USER=moodle
+      - DB_PASSWORD=moodle_password
+      - ASSISTANT_URL=http://10.3.16.187:3000
+      - ASSISTANT_API_KEY=${ASSISTANT_API_KEY}
+      - LLM_BASE_URL=http://10.3.16.187:3000/api
+      - LLM_API_KEY=${ASSISTANT_API_KEY}
+      - LLM_MODEL=models/gemma-4-26b-a4b-it
+      - NO_PROXY=open-webui,postgres,localhost,127.0.0.1
+      - no_proxy=open-webui,postgres,localhost,127.0.0.1
+
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+      update_config:
+        parallelism: 1
+        delay: 10s

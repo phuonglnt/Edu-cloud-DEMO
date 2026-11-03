@@ -3,6 +3,8 @@ services:
     image: postgres:16
     container_name: educloud-postgres
     restart: unless-stopped
+    ports:
+      - "5432:5432"
     environment:
       POSTGRES_DB: moodle
       POSTGRES_USER: moodle
@@ -110,7 +112,7 @@ services:
       - ASSISTANT_API_KEY=${ASSISTANT_API_KEY}
       - LLM_BASE_URL=http://open-webui:8080/api
       - LLM_API_KEY=${ASSISTANT_API_KEY}
-      - LLM_MODEL=models/models/gemma-4-26b-a4b-it
+      - LLM_MODEL=models/gemma-4-26b-a4b-it
       - NO_PROXY=open-webui,postgres,localhost,127.0.0.1
       - no_proxy=open-webui,postgres,localhost,127.0.0.1
     depends_on:
