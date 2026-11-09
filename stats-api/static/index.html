@@ -191,10 +191,18 @@
         <article class="metric metric-active"><p class="metric-label">Utilisateurs actifs</p><p class="metric-value" id="active-users">—</p><p class="metric-note">Comptes non suspendus</p></article>
         <article class="metric metric-courses"><p class="metric-label">Cours au catalogue</p><p class="metric-value" id="total-courses">—</p><p class="metric-note">Cours présents dans Moodle</p></article>
         <article class="metric metric-categories"><p class="metric-label">Catégories</p><p class="metric-value" id="total-categories">—</p><p class="metric-note">Organisation du catalogue</p></article>
+      
+      
       </section>
-
-
         <article class="metric metric-questions"><p class="metric-label">Questions posées</p><p class="metric-value" id="total-questions">—</p><p class="metric-note">À l’assistant IA</p></article>
+      </section>
+      <section class="metrics" aria-label="Questions par utilisateur">
+        <article class="metric" style="grid-column: 1 / -1;">
+          <p class="metric-label">Questions par utilisateur</p>
+          <table id="table-questions" style="width:100%; border-collapse:collapse; margin-top:12px;">
+            <tbody></tbody>
+          </table>
+        </article>
       </section>
 
       
@@ -261,6 +269,16 @@
       document.getElementById("total-categories").textContent = numberFormat.format(Number(catalogue.categories_total) || 0);
       const assistant = stats.assistant || {};
       document.getElementById("total-questions").textContent = numberFormat.format(Number(assistant.questions_total) || 0);
+            const tbody = document.querySelector("#table-questions tbody");
+      const parUtilisateur = assistant.questions_par_utilisateur || {};
+      const lignes = Object.entries(parUtilisateur).sort((a, b) => b[1] - a[1]);
+      tbody.innerHTML = lignes.length
+        ? lignes.map(([nom, n]) => `
+            <tr style="border-bottom:1px solid #e5e7eb;">
+              <td style="padding:8px 0;">${nom}</td>
+              <td style="padding:8px 0; text-align:right; font-weight:600;">${numberFormat.format(n)}</td>
+            </tr>`).join("")
+        : `<tr><td style="padding:8px 0; color:#888;">Aucune donnée</td></tr>`;
       //
 
       document.getElementById("active-rate").textContent = `${rate} %`;

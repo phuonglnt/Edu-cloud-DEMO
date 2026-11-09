@@ -187,19 +187,28 @@ async def compter_questions():
         reponse.raise_for_status()
         chats = reponse.json()
 
+         # Noms des utilisateurs (si la route échoue, on garde les identifiants)
+        noms = {}
+        try:
+            r = await client.get(f"{ASSISTANT_URL}/api/v1/users/", headers=headers)
+            r.raise_for_status()
+            d = r.json()
+            users = d.get("users", d) if isinstance(d, dict) else d
+            noms = {u["id"]: u.get("name") or u.get("email") or u["id"] for u in users}
+        except (httpx.HTTPError, KeyError, TypeError):
+            pass
+
         par_utilisateur = {}
         total = 0
         for chat in chats:
             uid = chat.get("user_id", "inconnu")
             messages = chat.get("chat", {}).get("history", {}).get("messages", {})
             nb_questions = sum(1 for m in messages.values() if m.get("role") == "user")
-            par_utilisateur[uid] = par_utilisateur.get(uid, 0) + nb_questions
+            nom = noms.get(uid, uid)
+            par_utilisateur[nom] = par_utilisateur.get(nom, 0) + nb_questions
             total += nb_questions
 
-        return {
-            "total": total,
-            "par_utilisateur": par_utilisateur
-        }
+        return {"total": total, "par_utilisateur": par_utilisateur}
 ########################
 
 @app.get("/api/stats")
