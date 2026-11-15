@@ -18,6 +18,7 @@ Assistant pédagogique basé sur un LLM, intégré à Moodle.
 | `open-webui` | 3001 | Assistant IA, bases de connaissances | Image existante |
 | `quiz-api` | 8001 | Génération de quiz | Construit avec notre Dockerfile |
 | `sync-moodle` | aucun | Envoie les fichiers Moodle à l'assistant | Construit avec notre Dockerfile |
+| `stats-api` | 8002 | Statistiques, quotas et abonnements | Image `ple002/educloud-stats-api:v3`, déployée comme service Swarm |
 
 Dépendance externe : l'API Google Gemini fournit le modèle de langage.
 
@@ -34,6 +35,37 @@ L'API trouve la base de connaissances qui porte le nom du cours et demande le qu
 
 **Déposer des supports.** Quand un enseignant ajoute un PDF dans un cours Moodle, `sync-moodle` le détecte,
 crée la base de connaissances du cours si elle n'existe pas, puis y dépose le fichier. Il n'y a rien d'autre à faire.
+
+**Suivre la consommation.** Le tableau de bord sur `http://localhost:8002` affiche
+le nombre d'utilisateurs et de cours Moodle, ainsi que le nombre de questions
+posées à l'assistant par utilisateur, avec son niveau et son quota. Il génère aussi
+un court bilan écrit par l'IA.
+
+**Changer de forfait.** Depuis le menu de Moodle, l'étudiant ouvre la page
+« Abonnement ». Elle affiche son niveau, son quota, et un formulaire de paiement
+simulé. Après un paiement accepté, `stats-api` enregistre le nouveau niveau dans
+PostgreSQL. La carte `4242 4242 4242 4242` est acceptée, la carte
+`4000 0000 0000 0002` est refusée.
+
+**Bloquer le chat au quota.** Quand un utilisateur a atteint son quota, l'assistant
+refuse sa question suivante et le renvoie vers la page « Abonnement ». Le chat
+reprend dès que le paiement est accepté.
+
+## Niveaux de service
+
+| Niveau | Questions à l'assistant |
+| --- | --- |
+| FREE | 5 |
+| GOLD | 50 |
+| PLATINUM | illimité |
+
+Le niveau est enregistré dans la table `abonnement` de PostgreSQL. Chaque
+paiement, accepté ou refusé, est enregistré dans la table `paiement`. Les deux
+tables sont créées au démarrage de `stats-api`.
+
+Le compte Moodle et le compte de l'assistant sont rapprochés par leur **adresse
+e-mail** : l'utilisateur paie avec son compte Moodle, et le quota s'applique au
+compte Open WebUI qui a la même adresse.
 
 ## Prérequis
 
@@ -75,6 +107,14 @@ docker compose up -d --force-recreate quiz-api sync-moodle
 
 4. Dans Moodle, créer un cours et y déposer un PDF. Au bout de quelques minutes, il apparaît comme base de connaissances dans l'assistant.
 
+**Port de l'assistant.** En local, l'assistant est publié sur le port 3001. Sur le serveur de l'université, il utilise le port 3000 : remplacer `3001` par `3000` dans les adresses de ce document. Les lignes correspondantes sont en commentaire dans `docker-compose.yml` et `docker-stack-stats.yml`.
+
+**Aucun modèle visible avec un compte utilisateur.** Par défaut, seuls les administrateurs de l'assistant voient les modèles. Dans Admin Panel → Models, ouvrir chaque modèle à proposer et le rendre public.
+
+**Installer Moodle.** Au tout premier démarrage, une fois `.env` rempli, lancer une seule fois `./install-moodle.sh` : le script crée la base de Moodle et le compte administrateur.
+
+**Démarrer `stats-api`.** `docker compose up -d` ne démarre pas `stats-api` : voir « Déploiement avec Docker Swarm ».
+
 ### Lien dans le menu de Moodle
 
 Site administration → Appearance → Advanced theme settings → Custom menu items :
@@ -82,11 +122,40 @@ Site administration → Appearance → Advanced theme settings → Custom menu i
 ```
 Accueil|/
 Assistant IA|http://localhost:3001
+Abonnement|/local/abonnement/index.php
 ```
 
 Ce champ **remplace** le menu principal : il faut donc déclarer aussi l'entrée d'accueil. (Ce n'est pas une bonne conception)
 
 Les services s'appellent par leur **nom de service**, et non par une adresse IP : `postgres:5432`, `open-webui:8080`.
+
+### Page « Abonnement » dans Moodle
+
+La page « Abonnement » est un plugin Moodle (`moodle-abonnement/`, copié dans l'image par le Dockerfile). Après la première construction de l'image, l'installer une fois :
+
+```bash
+docker compose exec -u www-data moodle php /var/www/html/admin/cli/upgrade.php --non-interactive
+```
+
+La page appelle `stats-api` depuis le conteneur Moodle. Comme `stats-api` est un service Swarm, en dehors du réseau Compose, son adresse doit être donnée au service `moodle` dans `docker-compose.yml` :
+
+```yaml
+      STATS_API_URL: http://host.docker.internal:8002
+```
+
+Puis `docker compose up -d moodle`. Sans cette variable, la page affiche « Impossible de charger votre abonnement ».
+
+### Blocage du chat quand le quota est atteint
+
+Le filtre `openwebui-filter/quota_educloud.py` bloque le chat d'un utilisateur dont le quota est atteint. Les administrateurs d'Open WebUI ne sont pas limités : `quiz-api` et `stats-api` appellent l'assistant avec la clé d'un administrateur.
+
+Installation, une seule fois, dans Open WebUI (`http://localhost:3001`) :
+
+1. Admin Panel → Functions → « + » → New Function, coller le contenu du fichier, enregistrer.
+2. Activer la fonction, puis « ... » → Global (elle s'applique alors à tous les modèles).
+3. Ouvrir les Valves (roue dentée) et renseigner `stats_api_url` : `http://host.docker.internal:8002`. Sur le serveur, renseigner aussi `moodle_url`.
+
+Si le filtre ne peut pas joindre `stats-api`, il laisse passer les questions : le chat n'est alors plus bloqué.
 
 ~~## Déploiement sur le serveur de l'université (optionnel)
 
@@ -113,6 +182,118 @@ Deux ajouts sont nécessaires, car le serveur ne sort sur Internet qu'à travers
 
 Les variables de proxy s'appliquent à toutes les requêtes sortantes, y compris les appels entre conteneurs. C'est pourquoi `quiz-api` et `sync-moodle` déclarent déjà `NO_PROXY` pour les noms de services internes.~~
 
+## Déploiement avec Docker Swarm
+
+`stats-api` n'est pas dans le fichier Compose : il est déployé comme service Swarm avec `docker-stack-stats.yml`, en 3 réplicas. Les autres services doivent être démarrés avant, avec `docker compose up -d`.
+
+Le service Swarm n'est pas sur le réseau Compose. Il atteint donc PostgreSQL et l'assistant par les ports publiés sur l'hôte : `host.docker.internal:5434` et `host.docker.internal:3001`. Sur un serveur Linux, remplacer `host.docker.internal` par l'adresse IP du serveur.
+
+### Activer Swarm sur la machine
+
+À faire une seule fois par machine :
+
+```bash
+docker swarm init                                   # transforme cette machine en nœud Swarm (manager)
+docker info --format '{{.Swarm.LocalNodeState}}'    # vérifie l'état : doit afficher « active »
+docker node ls                                      # liste les nœuds du cluster (ici un seul)
+```
+
+### Construire et publier l'image
+
+Swarm télécharge l'image depuis Docker Hub : il faut donc la publier après chaque modification de `stats-api`.
+
+```bash
+docker login                                        # connexion au compte Docker Hub
+docker buildx build \
+  --platform linux/amd64,linux/arm64 \
+  -t ple002/educloud-stats-api:v3 \
+  --push ./stats-api
+```
+
+- `--platform` : construit l'image pour deux architectures, `amd64` pour le serveur et `arm64` pour un Mac Apple Silicon.
+- `-t` : nom et version de l'image. Pour une nouvelle version, changer le tag (`v4`, ...) ici et dans `docker-stack-stats.yml`.
+- `--push` : envoie l'image sur Docker Hub à la fin de la construction.
+- `./stats-api` : dossier qui contient le Dockerfile.
+
+### Déployer
+
+Les variables du fichier `.env` ne sont pas lues automatiquement par Swarm. Il
+faut les charger avant le déploiement, dans le même terminal. Sinon la clé de l'assistant est vide et le service redémarre en boucle :
+
+```bash
+set -a && source .env && set +a                             # charge les variables de .env dans le terminal
+docker stack deploy -c docker-stack-stats.yml swarmdemo     # crée ou met à jour la pile « swarmdemo » à partir du fichier
+docker service ls                                           # liste les services et leurs réplicas (3/3 attendu)
+docker service ps swarmdemo_stats-api                       # état de chaque réplica du service
+docker service logs swarmdemo_stats-api --tail=30           # 30 dernières lignes de journal du service
+curl http://localhost:8002/health                           # vérifie que l'API répond
+```
+
+Le service s'appelle `swarmdemo_stats-api` : nom de la pile, puis nom du service dans le fichier.
+
+Mise à jour vers une nouvelle image, un réplica après l'autre :
+
+```bash
+docker service update --image ple002/educloud-stats-api:v3 swarmdemo_stats-api
+```
+
+### Choisir le modèle de `stats-api`
+
+Le modèle utilisé par `stats-api` (bilan du tableau de bord, tuteur) est la variable `LLM_MODEL` de `docker-stack-stats.yml`. Elle n'est pas dans `.env`. Sa valeur doit être le nom exact d'un modèle qui fonctionne dans l'assistant, sinon ces deux fonctions renvoient une erreur 502.
+
+Lister les noms des modèles :
+
+```bash
+KEY=$(grep ASSISTANT_API_KEY .env | cut -d= -f2)
+curl -s -H "Authorization: Bearer $KEY" http://localhost:3001/api/models | grep -o '"id":"models/[^"]*"' | sort -u
+```
+
+Un modèle listé ne fonctionne pas toujours (quota Gemini épuisé, modèle retiré). Pour le vérifier, écrire les noms à tester après `for m in` :
+
+```bash
+for m in models/gemini-3.5-flash models/gemini-3.8-flash; do
+  printf "%-45s " "$m"
+  curl -s -m 30 -X POST http://localhost:3001/api/chat/completions \
+    -H "Authorization: Bearer $KEY" -H "Content-Type: application/json" \
+    -d "{\"model\":\"$m\",\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}],\"max_tokens\":5}" | head -c 120
+  echo
+done
+```
+
+Lecture du résultat : une ligne qui commence par `{"choices":` ou `{"id":` indique un modèle qui répond. `{"detail":"Model not found"}` ou un message d'erreur (quota, 429) indique un modèle à ne pas utiliser. Après avoir changé `LLM_MODEL`, redéployer avec `docker stack deploy`.
+
+### Tester Swarm
+
+Mise à l'échelle :
+
+```bash
+docker service scale swarmdemo_stats-api=3      # passe à 3 réplicas
+docker service ps swarmdemo_stats-api           # les 3 réplicas doivent être « Running »
+docker service scale swarmdemo_stats-api=1      # revient à 1 réplica
+```
+
+Tolérance aux pannes : arrêter un conteneur de force, Swarm en recrée un.
+
+```bash
+docker ps | grep stats-api                      # trouve l'identifiant d'un conteneur du service
+docker kill <CONTAINER_ID>                      # arrête ce conteneur brutalement
+docker service ps swarmdemo_stats-api           # l'ancien est « Failed », un nouveau est « Running »
+```
+
+État partagé : avec 3 réplicas, la même requête doit donner le même niveau, quel que soit le réplica qui répond.
+
+```bash
+for i in 1 2 3 4 5 6; do curl -s http://localhost:8002/api/subscription/<e-mail>; echo; done
+```
+
+Le port 8002 est publié par le routage de Swarm (`"8002:8000"`), qui répartit les requêtes entre les réplicas. Avec `mode: host`, chaque réplica réserverait le port 8002 de la machine : un seul réplica pourrait démarrer par nœud. Les réplicas partagent les niveaux et les paiements, car ils sont enregistrés dans PostgreSQL et non en mémoire.
+
+Arrêter le service Swarm :
+
+```bash
+docker stack rm swarmdemo                       # supprime la pile et ses conteneurs (les données restent dans PostgreSQL)
+```
+
 ## Exploitation
 
 ```bash
@@ -124,10 +305,26 @@ docker compose up -d --build            # reconstruire et appliquer les changeme
 
 **Ne jamais utiliser `docker compose down -v`** : l'option `-v` supprime les volumes, donc la base de Moodle, les comptes de l'assistant et les bases de connaissances.
 
+Autres commandes utiles :
+
+```bash
+docker compose logs -f moodle                   # journal d'un autre service : moodle, open-webui, quiz-api, postgres
+docker compose restart quiz-api                 # redémarrer un seul service
+docker compose up -d moodle                     # appliquer un changement de docker-compose.yml à un seul service
+
+docker service ls                               # état de stats-api (service Swarm, absent de « docker compose ps »)
+docker service logs -f swarmdemo_stats-api      # journal de stats-api
+
+# Abonnements et paiements enregistrés
+docker exec educloud-postgres psql -U moodle -d moodle -c "select * from abonnement" -c "select * from paiement"
+```
+
 ## Limites connues
 
 - **Moodle et l'assistant ont des comptes séparés. Une authentification unique permettrait à l'assistant de savoir à quels cours un utilisateur est inscrit.**
-- L'offre gratuite de Gemini permet 20 requêtes par jour et par modèle. Le quota étant calculé par modèle, plusieurs modèles peuvent être configurés pour répartir la charge.
 - L'assistant répond même quand l'information n'est pas dans les supports de cours. Dans ce cas il utilise ses connaissances générales : il faut donc toujours vérifier la source citée.
 - La recherche ne remonte que les passages les plus proches, donc une réponse peut passer à côté d'une information située dans une autre partie d'un document.
 - Les services fonctionnent sans HTTPS.
+- Les questions posées depuis l'iframe de Moodle ne sont pas comptées : le navigateur bloque le cookie d'Open WebUI dans un iframe.
+- Le tableau des questions ne liste que les utilisateurs qui ont déjà posé une question.
+- **Le quota ne s'applique que si le compte Moodle et le compte de l'assistant ont la même adresse e-mail.**
