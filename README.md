@@ -2,11 +2,13 @@
 
 *[Version française](README.fr.md)*
 
-LLM-based teaching assistant integrated into Moodle.
+Edu-cloud adds an LLM-based teaching assistant to Moodle, which answers students from their own course materials.
 
-- Students ask questions and get answers built from the course materials, with the source cited. 
-- Teachers generate quizzes from the same materials. 
-- Course files uploaded to Moodle are sent automatically to the assistant AI.
+- **The teacher uploads slides and documents, as PDF files, to Moodle.** They serve both as course material and as the source for the assistant: they are sent to it automatically, with nothing else to do.
+- **The student asks the assistant questions** and gets an answer built from these materials, with the document and page cited.
+- **The teacher generates quizzes** from the same materials.
+- **The free plan allows 5 questions.** Beyond that, the assistant blocks the chat and the student moves to a higher tier (GOLD or PLATINUM) from the "Abonnement" page in Moodle, through a simulated payment.
+- **A dashboard** tracks usage: number of questions, tier and quota of each user.
 
 
 ## Services
@@ -33,7 +35,7 @@ The answer comes back with the document name and page.
 **Generating a quiz.** The teacher opens the quiz interface, picks a course, a topic and a number of questions. 
 The API finds the knowledge base named after the course and asks the assistant to write the quiz from it.
 
-**Uploading materials.** When a teacher adds a PDF to a Moodle course, `sync-moodle` detects it, knowl
+**Uploading materials.** When a teacher adds a PDF to a Moodle course, `sync-moodle` detects it,
 creates a knowledge base named after the course if needed, and uploads the file. Nothing else to do.
 
 **Tracking usage.** The dashboard on `http://localhost:8002` shows the number of
@@ -69,7 +71,7 @@ account that has the same address.
 
 - Docker with Docker Compose
 - A Gemini API key, created on `aistudio.google.com/apikey`
-- An Open WebUI API key, created once the stack is running running
+- An Open WebUI API key, created once the stack is running
         + **Settings → Authentication → Create API key**
         + **Admin Panel → Account → API key**
 
@@ -81,7 +83,7 @@ docker compose up -d --build
 docker compose ps
 ```
 
-## fill in the keys
+## Fill in the keys
 ```bash
 OPENAI_API_KEY=         # Gemini API Key
 ASSISTANT_API_KEY=      # Open Webui API Key
@@ -97,7 +99,7 @@ Then:
 1. Open `http://localhost:8080` and log in to Moodle with the admin account from `.env`.
 2. Open `http://localhost:3001` and create the assistant account. The first account created is the administrator.
 
-3. Restart the services if need
+3. Restart the services if needed
 
 ```bash
 docker compose up -d --force-recreate quiz-api sync-moodle
@@ -155,7 +157,7 @@ Installation, once, in Open WebUI (`http://localhost:3001`):
 
 If the filter cannot reach `stats-api`, it lets the questions through: the chat is then no longer blocked.
 
-~~## Deploying on the university server (optional)
+## Deploying on the university server (optional)
 
 Two additions are needed, because the server only reaches the Internet through a proxy.
 
@@ -178,7 +180,7 @@ Two additions are needed, because the server only reaches the Internet through a
       - RAG_EMBEDDING_MODEL=models/gemini-embedding-001
 ```
 
-The proxy variables apply to every outgoing request, including calls between containers, so `quiz-api` and `sync-moodle` already declare `NO_PROXY` for the internal service names.~~
+The proxy variables apply to every outgoing request, including calls between containers, so `quiz-api` and `sync-moodle` already declare `NO_PROXY` for the internal service names.
 
 ## Deploying with Docker Swarm
 
@@ -311,10 +313,16 @@ docker compose up -d moodle                     # apply a docker-compose.yml cha
 
 docker service ls                               # state of stats-api (Swarm service, not shown by "docker compose ps")
 docker service logs -f swarmdemo_stats-api      # logs of stats-api
-
-# Stored subscriptions and payments
-docker exec educloud-postgres psql -U moodle -d moodle -c "select * from abonnement" -c "select * from paiement"
 ```
+
+Checking that a payment was stored, after a try on the "Abonnement" page:
+
+```bash
+docker compose exec postgres psql -U moodle -d moodle -c "SELECT * FROM abonnement;"    # current tier of each user
+docker compose exec postgres psql -U moodle -d moodle -c "SELECT * FROM paiement;"      # payment history
+```
+
+An accepted payment adds an `ACCEPTE` row to `paiement` and updates the tier in `abonnement`. A declined payment adds a `REFUSE` row to `paiement` and leaves `abonnement` unchanged. The user is identified by their email address.
 
 ## Known limitations
 

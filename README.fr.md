@@ -2,11 +2,13 @@
 
 *[English version](README.md)*
 
-Assistant pédagogique basé sur un LLM, intégré à Moodle.
+Edu-cloud ajoute à Moodle un assistant pédagogique basé sur un LLM, qui répond aux étudiants à partir des supports de leur cours.
 
-- Les étudiants posent leurs questions et reçoivent une réponse construite à partir des supports de cours, avec la source citée.
-- Les enseignants génèrent des quiz à partir des mêmes supports.
-- Les fichiers déposés dans Moodle sont envoyés automatiquement à l'assistant IA.
+- **L'enseignant dépose ses diapositives et ses documents, au format PDF, dans Moodle.** Ils servent à la fois de support de cours et de source pour l'assistant : ils lui sont envoyés automatiquement, sans autre manipulation.
+- **L'étudiant pose ses questions à l'assistant** et reçoit une réponse construite à partir de ces supports, avec le document et la page cités.
+- **L'enseignant génère des quiz** à partir des mêmes supports.
+- **L'offre gratuite donne droit à 5 questions.** Au-delà, l'assistant bloque le chat et l'étudiant passe à un niveau supérieur (GOLD ou PLATINUM) depuis la page « Abonnement » de Moodle, par un paiement simulé.
+- **Un tableau de bord** suit l'utilisation : nombre de questions, niveau et quota de chaque utilisateur.
 
 
 ## Services
@@ -157,7 +159,7 @@ Installation, une seule fois, dans Open WebUI (`http://localhost:3001`) :
 
 Si le filtre ne peut pas joindre `stats-api`, il laisse passer les questions : le chat n'est alors plus bloqué.
 
-~~## Déploiement sur le serveur de l'université (optionnel)
+## Déploiement sur le serveur de l'université (optionnel)
 
 Deux ajouts sont nécessaires, car le serveur ne sort sur Internet qu'à travers un proxy.
 
@@ -180,7 +182,7 @@ Deux ajouts sont nécessaires, car le serveur ne sort sur Internet qu'à travers
       - RAG_EMBEDDING_MODEL=models/gemini-embedding-001
 ```
 
-Les variables de proxy s'appliquent à toutes les requêtes sortantes, y compris les appels entre conteneurs. C'est pourquoi `quiz-api` et `sync-moodle` déclarent déjà `NO_PROXY` pour les noms de services internes.~~
+Les variables de proxy s'appliquent à toutes les requêtes sortantes, y compris les appels entre conteneurs. C'est pourquoi `quiz-api` et `sync-moodle` déclarent déjà `NO_PROXY` pour les noms de services internes.
 
 ## Déploiement avec Docker Swarm
 
@@ -314,10 +316,16 @@ docker compose up -d moodle                     # appliquer un changement de doc
 
 docker service ls                               # état de stats-api (service Swarm, absent de « docker compose ps »)
 docker service logs -f swarmdemo_stats-api      # journal de stats-api
-
-# Abonnements et paiements enregistrés
-docker exec educloud-postgres psql -U moodle -d moodle -c "select * from abonnement" -c "select * from paiement"
 ```
+
+Vérifier qu'un paiement est bien enregistré, après un essai sur la page « Abonnement » :
+
+```bash
+docker compose exec postgres psql -U moodle -d moodle -c "SELECT * FROM abonnement;"    # niveau actuel de chaque utilisateur
+docker compose exec postgres psql -U moodle -d moodle -c "SELECT * FROM paiement;"      # historique des paiements
+```
+
+Un paiement accepté ajoute une ligne `ACCEPTE` dans `paiement` et met à jour le niveau dans `abonnement`. Un paiement refusé ajoute une ligne `REFUSE` dans `paiement` et ne change pas `abonnement`. L'utilisateur est identifié par son adresse e-mail.
 
 ## Limites connues
 
