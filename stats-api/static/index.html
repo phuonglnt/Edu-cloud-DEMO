@@ -200,6 +200,13 @@
         <article class="metric" style="grid-column: 1 / -1;">
           <p class="metric-label">Questions par utilisateur</p>
           <table id="table-questions" style="width:100%; border-collapse:collapse; margin-top:12px;">
+            <thead>
+              <tr style="border-bottom:1px solid #e5e7eb; color:#68746e; font-size:12px; text-align:left;">
+                <th style="padding:8px 0; font-weight:600;">Utilisateur</th>
+                <th style="padding:8px 0; font-weight:600;">Niveau</th>
+                <th style="padding:8px 0; font-weight:600; text-align:right;">Questions / quota</th>
+              </tr>
+            </thead>
             <tbody></tbody>
           </table>
         </article>
@@ -271,13 +278,20 @@
       document.getElementById("total-questions").textContent = numberFormat.format(Number(assistant.questions_total) || 0);
             const tbody = document.querySelector("#table-questions tbody");
       const parUtilisateur = assistant.questions_par_utilisateur || {};
+      const abonnements = assistant.abonnement_par_utilisateur || {};
       const lignes = Object.entries(parUtilisateur).sort((a, b) => b[1] - a[1]);
       tbody.innerHTML = lignes.length
-        ? lignes.map(([nom, n]) => `
+        ? lignes.map(([nom, n]) => {
+            const { tier = "FREE", limite = null } = abonnements[nom] || {};
+            const quota = limite === null ? "illimité" : numberFormat.format(limite);
+            const atteint = limite !== null && n >= limite;
+            return `
             <tr style="border-bottom:1px solid #e5e7eb;">
               <td style="padding:8px 0;">${nom}</td>
-              <td style="padding:8px 0; text-align:right; font-weight:600;">${numberFormat.format(n)}</td>
-            </tr>`).join("")
+              <td style="padding:8px 0;">${tier}</td>
+              <td style="padding:8px 0; text-align:right; font-weight:600;${atteint ? " color:var(--danger);" : ""}">${numberFormat.format(n)} / ${quota}${atteint ? " (quota atteint)" : ""}</td>
+            </tr>`;
+          }).join("")
         : `<tr><td style="padding:8px 0; color:#888;">Aucune donnée</td></tr>`;
       //
 
