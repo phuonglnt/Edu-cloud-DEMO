@@ -24,8 +24,6 @@ Edu-cloud adds an LLM-based teaching assistant to Moodle, which answers students
 
 External dependency: the Google Gemini API provides the language model.
 
-PostgreSQL has no published port: only the services in this compose file can reach it.
-
 ## How it works
 
 **Asking a question.** The student opens the assistant from the Moodle menu, types `#` to select the course, then asks. 
