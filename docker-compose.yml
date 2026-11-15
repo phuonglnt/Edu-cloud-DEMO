@@ -4,7 +4,9 @@ services:
     container_name: educloud-postgres
     restart: unless-stopped
     ports:
-      - "5432:5432"
+      - "5434:5432"     # Edited by Phuong to avoid conflict with local PostgreSQL instance
+    #  - "5432:5432"    # Use this port if your local PostgreSQL instance is not running on port 5432
+      
     environment:
       POSTGRES_DB: moodle
       POSTGRES_USER: moodle
@@ -33,6 +35,9 @@ services:
       MOODLE_DB_PASSWORD: moodle_password
 #      MOODLE_URL: http://10.3.16.187:8080          # modifié Phuong (avant : http://localhost:8080)
       MOODLE_URL: http://localhost:8080
+      STATS_API_URL: http://host.docker.internal:8002 # Use this if you already commented out the stats-api service in docker-compose.yml
+
+
     volumes:
       - moodle_data:/moodledata
 
@@ -40,7 +45,8 @@ services:
   open-webui:
     image: ghcr.io/open-webui/open-webui:main
     ports:
-      - "3001:8080"
+      - "3001:8080"     # Local : 3001
+    #  - "3000:8080"    # Use 3000 in server university
     volumes:
       - open-webui:/app/backend/data
     environment:
@@ -93,32 +99,32 @@ services:
 
 
   # ===== AJOUT MOHAMMED =====
-  stats-api:
-    build:
-      context: ./stats-api
-#      args:
-#        http_proxy: http://cache.univ-pau.fr:3128
-#        https_proxy: http://cache.univ-pau.fr:3128
-    ports:
-      - "8002:8000"
-    environment:
-      - PYTHONUNBUFFERED=1
-      - DB_HOST=postgres
-      - DB_PORT=5432
-      - DB_NAME=moodle
-      - DB_USER=moodle
-      - DB_PASSWORD=moodle_password
-      - ASSISTANT_URL=http://open-webui:8080
-      - ASSISTANT_API_KEY=${ASSISTANT_API_KEY}
-      - LLM_BASE_URL=http://open-webui:8080/api
-      - LLM_API_KEY=${ASSISTANT_API_KEY}
-      - LLM_MODEL=models/gemma-4-26b-a4b-it
-      - NO_PROXY=open-webui,postgres,localhost,127.0.0.1
-      - no_proxy=open-webui,postgres,localhost,127.0.0.1
-    depends_on:
-      - postgres
-      - open-webui
-    restart: always
+#   stats-api:
+#     build:
+#       context: ./stats-api
+# #      args:
+# #        http_proxy: http://cache.univ-pau.fr:3128
+# #        https_proxy: http://cache.univ-pau.fr:3128
+#     ports:
+#       - "8002:8000"
+#     environment:
+#       - PYTHONUNBUFFERED=1
+#       - DB_HOST=postgres
+#       - DB_PORT=5432
+#       - DB_NAME=moodle
+#       - DB_USER=moodle
+#       - DB_PASSWORD=moodle_password
+#       - ASSISTANT_URL=http://open-webui:8080
+#       - ASSISTANT_API_KEY=${ASSISTANT_API_KEY}
+#       - LLM_BASE_URL=http://open-webui:8080/api
+#       - LLM_API_KEY=${ASSISTANT_API_KEY}
+#       - LLM_MODEL=models/gemma-4-26b-a4b-it
+#       - NO_PROXY=open-webui,postgres,localhost,127.0.0.1
+#       - no_proxy=open-webui,postgres,localhost,127.0.0.1
+#     depends_on:
+#       - postgres
+#       - open-webui
+#     restart: always
 
   # ===== FIN AJOUT MOHAMMED =====
 
