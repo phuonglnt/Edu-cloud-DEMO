@@ -24,6 +24,8 @@ Edu-cloud adds an LLM-based teaching assistant to Moodle, which answers students
 
 External dependency: the Google Gemini API provides the language model.
 
+The Groq API provides the model of `stats-api` (dashboard report, tutor), so that it does not use up the free Gemini quota.
+
 ## How it works
 
 **Asking a question.** The student opens the assistant from the Moodle menu, types `#` to select the course, then asks. 
@@ -88,6 +90,7 @@ ASSISTANT_API_KEY=      # Open Webui API Key
 MOODLE_ADMIN_USER=admin
 MOODLE_ADMIN_PASSWORD=
 MOODLE_ADMIN_EMAIL=
+LLM_API_KEY=            # Groq API key, used by stats-api
 ```
 
 The first start takes a few minutes: Moodle initialises its database and Open WebUI sets up.
@@ -108,6 +111,14 @@ docker compose up -d --force-recreate quiz-api sync-moodle
 **Assistant port.** Locally, the assistant is published on port 3001. On the university server it uses port 3000: replace `3001` with `3000` in the addresses of this document. The matching lines are commented in `docker-compose.yml` and `docker-stack-stats.yml`.
 
 **No model visible with a user account.** By default, only the assistant's administrators see the models. In Admin Panel → Models, open each model to offer and make it public.
+
+**Syncing materials for a demo.** `sync-moodle` sends the PDFs to the assistant at startup, then every `SYNC_INTERVAL` seconds (24 hours in `docker-compose.yml`). For a PDF uploaded during a demo to show up right away, restart the service:
+
+```bash
+docker compose restart sync-moodle
+```
+
+On the server, from another folder: `docker compose -f ~/educloud/docker-compose.yml restart sync-moodle`.
 
 **Installing Moodle.** On the very first start, once `.env` is filled in, run `./install-moodle.sh` once: the script creates the Moodle database and the administrator account.
 
@@ -236,19 +247,46 @@ docker service update --image ple002/educloud-stats-api:v3 swarmdemo_stats-api
 
 ### Choosing the `stats-api` model
 
-The model used by `stats-api` (dashboard report, tutor) is the `LLM_MODEL` variable in `docker-stack-stats.yml`. It is not in `.env`. Its value must be the exact name of a model that works in the assistant, otherwise these two features return a 502 error.
+`stats-api` (dashboard report, tutor) does not use Gemini: it calls the Groq API directly. Its calls therefore do not use up the quota of the free Gemini tier, which is kept for the assistant and the quizzes.
 
-List the model names:
+Three variables in `docker-stack-stats.yml` configure it:
+
+| Variable | Value | Role |
+| --- | --- | --- |
+| `LLM_BASE_URL` | `https://api.groq.com/openai/v1` | Groq API address |
+| `LLM_API_KEY` | `${LLM_API_KEY}`, read from `.env` | Groq API key, created on `console.groq.com/keys` |
+| `LLM_MODEL` | for example `qwen/qwen3.8-27b` | Exact name of a Groq model that works |
+
+The key is loaded from `.env` by `set -a && source .env && set +a`: never write it in `docker-stack-stats.yml`, which is published on GitHub. If `LLM_MODEL` does not work, the report and the tutor return a 502 error. After a change, redeploy with `docker stack deploy`.
+
+**Checking the Groq models.** This command lists every model of the account and tests each one:
+
+```bash
+KEY=$(grep '^LLM_API_KEY=' .env | cut -d= -f2)
+curl -s https://api.groq.com/openai/v1/models -H "Authorization: Bearer $KEY" \
+  | python3 -c "import sys,json; print('\\n'.join(m['id'] for m in json.load(sys.stdin).get('data',[])))" \
+  | while read -r m; do
+      printf "%-45s " "$m"
+      r=$(curl -s -m 15 -X POST https://api.groq.com/openai/v1/chat/completions \
+        -H "Authorization: Bearer $KEY" -H "Content-Type: application/json" \
+        -d "{\"model\":\"$m\",\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}],\"max_tokens\":5}")
+      if echo "$r" | grep -q '"choices"'; then echo "OK"; else echo "$r" | head -c 80; echo; fi
+    done
+```
+
+`OK`: the model answers and can be used in `LLM_MODEL`. An error message: the model does not do chat (for example `whisper`, which transcribes audio) or requires accepting terms on the Groq website. An empty line: no answer within 15 seconds, run the command again.
+
+**Checking the assistant's Gemini models.** The assistant and `quiz-api` still use Gemini, through Open WebUI. List the model names:
 
 ```bash
 KEY=$(grep ASSISTANT_API_KEY .env | cut -d= -f2)
 curl -s -H "Authorization: Bearer $KEY" http://localhost:3001/api/models | grep -o '"id":"models/[^"]*"' | sort -u
 ```
 
-A listed model does not always work (Gemini quota used up, model retired). To check, write the names to test after `for m in`:
+A listed model does not always work (Gemini quota used up, high demand, model retired). To check, write the names to test after `for m in`:
 
 ```bash
-for m in models/gemini-3.5-flash models/gemini-3.8-flash; do
+for m in models/gemini-3.5-flash models/gemini-3.6-flash; do
   printf "%-45s " "$m"
   curl -s -m 30 -X POST http://localhost:3001/api/chat/completions \
     -H "Authorization: Bearer $KEY" -H "Content-Type: application/json" \
@@ -257,7 +295,7 @@ for m in models/gemini-3.5-flash models/gemini-3.8-flash; do
 done
 ```
 
-Reading the result: a line starting with `{"choices":` or `{"id":` means the model answers. `{"detail":"Model not found"}` or an error message (quota, 429) means the model must not be used. After changing `LLM_MODEL`, redeploy with `docker stack deploy`.
+Reading the result: a line starting with `{"choices":` or `{"id":` means the model answers. `{"detail":"Model not found"}` or an error message (quota, 429, 503) means the model must not be used for now. An empty line: no answer within 30 seconds.
 
 ### Testing Swarm
 
