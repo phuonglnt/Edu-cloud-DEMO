@@ -13,12 +13,15 @@ services:
       - ASSISTANT_URL=http://host.docker.internal:3001
     #  - ASSISTANT_URL=http://10.3.16.187:3000   # Use 3000 in server university
       - ASSISTANT_API_KEY=${ASSISTANT_API_KEY}
-      - LLM_BASE_URL=http://host.docker.internal:3001/api
+    #  - LLM_BASE_URL=http://host.docker.internal:3001/api
     #  - LLM_BASE_URL=http://10.3.16.187:3000/api   # Use 3000 in server university
-      - LLM_API_KEY=${ASSISTANT_API_KEY}
-      - LLM_MODEL=models/gemini-3.5-flash
+    #  - LLM_API_KEY=${ASSISTANT_API_KEY}
+    #  - LLM_MODEL=models/gemini-3.5-flash
       - NO_PROXY=open-webui,postgres,localhost,127.0.0.1
       - no_proxy=open-webui,postgres,localhost,127.0.0.1
+      - LLM_BASE_URL=https://api.groq.com/openai/v1  # Use Groq LLM API static
+      - LLM_API_KEY=${LLM_API_KEY}
+      - LLM_MODEL=qwen/qwen3.8-27b
 
       # Swarm ne lit pas le fichier .env : charger les variables avant de déployer
       # Sinon, utilise:  set -a && source .env && set +a

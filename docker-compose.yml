@@ -85,7 +85,7 @@ services:
       - ASSISTANT_URL=http://open-webui:8080
       - ASSISTANT_API_KEY=${ASSISTANT_API_KEY}
       - MOODLE_DATA=/moodledata
-      - SYNC_INTERVAL=30
+      - SYNC_INTERVAL=86400  # 24 hours in seconds #Change this value to adjust the sync interval in demo
       - NO_PROXY=open-webui,postgres,localhost,127.0.0.1
       - no_proxy=open-webui,postgres,localhost,127.0.0.1
     volumes:
