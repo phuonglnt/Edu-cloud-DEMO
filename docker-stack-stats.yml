@@ -24,7 +24,7 @@ services:
         target: /etc/nginx/conf.d/default.conf
     # Mot de passe du tableau de bord (fichier nginx-htpasswd, jamais versionné)
     secrets:
-      - source: nginx_htpasswd_v3
+      - source: nginx_htpasswd_v1
         target: nginx_htpasswd
     deploy:
       replicas: 1
@@ -68,8 +68,9 @@ services:
         # Seuls les nœuds étiquetés educloud=api reçoivent des réplicas
         constraints:
           - node.labels.educloud == api
-        # Au plus 3 réplicas par nœud
-        max_replicas_per_node: 3
+        # Au plus 4 réplicas par nœud : les 3 réplicas + 1 place pour order: start-first
+        # (pendant une mise à jour, le nouveau réplica démarre avant l'arrêt de l'ancien)
+        max_replicas_per_node: 4
       restart_policy:
         condition: on-failure
       update_config:
@@ -98,5 +99,5 @@ configs:
 secrets:
   # Créer avec : printf 'admin:%s\n' "$(openssl passwd -apr1 "$STATS_ADMIN_PASSWORD")" > nginx-htpasswd
   # Un secret Swarm est immuable : après un changement de mot de passe, passer à _v2, _v3…
-  nginx_htpasswd_v3:
+  nginx_htpasswd_v1:
     file: ./nginx-htpasswd

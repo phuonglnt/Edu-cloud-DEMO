@@ -246,7 +246,7 @@ echo "${#ASSISTANT_API_KEY} ${#LLM_API_KEY}"                # two non-zero numbe
 docker node update --label-add educloud=api $(docker info -f '{{.Swarm.NodeID}}')
 ```
 
-The dashboard, the AI report, the tutor and `/docs` are password-protected (user `admin`). Create the file once per machine; it is never committed. A Swarm secret is immutable, so regenerating this file requires renaming the secret (`nginx_htpasswd_v3` → `_v4`) in the stack file, even for the same password: `openssl passwd` adds a random salt, so the file changes on every run.
+The dashboard, the AI report, the tutor and `/docs` are password-protected (user `admin`). Create the file once per machine; it is never committed. A Swarm secret is immutable, so regenerating this file requires renaming the secret (`nginx_htpasswd_v1` → `_v2`) in the stack file, even for the same password: `openssl passwd` adds a random salt, so the file changes on every run.
 
 ```bash
 printf 'admin:%s\n' "$(openssl passwd -apr1 "$STATS_ADMIN_PASSWORD")" > nginx-htpasswd
@@ -256,7 +256,7 @@ The `/api/subscription/…` and `/api/upgrade` routes only answer calls coming f
 
 ```bash
 docker stack deploy -c docker-stack-stats.yml swarmdemo     # creates or updates the "swarmdemo" stack
-docker service ls --filter name=swarmdemo                   # nginx 1/1, stats-api 3/3 (max 3 per node)
+docker service ls --filter name=swarmdemo                   # nginx 1/1, stats-api 3/3 (max 4 per node)
 docker service ps swarmdemo_stats-api                       # state of each replica
 docker service logs swarmdemo_nginx --tail=20               # requests seen by nginx, with the chosen replica
 curl --noproxy '*' http://localhost:8002/health             # checks that the API answers
@@ -356,7 +356,7 @@ Placement rules and resources. Each test leaves the existing replicas running:
 
 | Test | Command | Expected result |
 | --- | --- | --- |
-| Limit of 3 replicas per node | `docker service scale swarmdemo_stats-api=4` | 4th replica `Pending`: `no suitable node (max replicas per node limit exceed)` |
+| Limit of 4 replicas per node (3 + 1 slot for `start-first`) | `docker service scale swarmdemo_stats-api=5` | 5th replica `Pending`: `no suitable node (max replicas per node limit exceed)` |
 | Impossible reservation | Change `memory: 128M` to `64G` under `reservations`, then `docker stack deploy` | New replica `Pending`, old replicas still running |
 
 Then go back to `docker service scale swarmdemo_stats-api=3` or to `128M`.

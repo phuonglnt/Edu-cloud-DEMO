@@ -249,7 +249,7 @@ Les réplicas de `stats-api` ne sont placés que sur les nœuds étiquetés `edu
 docker node update --label-add educloud=api $(docker info -f '{{.Swarm.NodeID}}')
 ```
 
-Le tableau de bord, le bilan IA, le tuteur et `/docs` sont protégés par un mot de passe (utilisateur `admin`). Créer le fichier une fois par machine ; il n'est jamais versionné. Un secret Swarm étant immuable, régénérer ce fichier impose de renommer le secret (`nginx_htpasswd_v3` → `_v4`) dans le fichier stack, même pour un mot de passe identique : `openssl passwd` ajoute un sel aléatoire, donc le fichier change à chaque génération.
+Le tableau de bord, le bilan IA, le tuteur et `/docs` sont protégés par un mot de passe (utilisateur `admin`). Créer le fichier une fois par machine ; il n'est jamais versionné. Un secret Swarm étant immuable, régénérer ce fichier impose de renommer le secret (`nginx_htpasswd_v1` → `_v2`) dans le fichier stack, même pour un mot de passe identique : `openssl passwd` ajoute un sel aléatoire, donc le fichier change à chaque génération.
 
 ```bash
 printf 'admin:%s\n' "$(openssl passwd -apr1 "$STATS_ADMIN_PASSWORD")" > nginx-htpasswd
@@ -259,7 +259,7 @@ Les routes `/api/subscription/…` et `/api/upgrade` ne répondent qu'aux appels
 
 ```bash
 docker stack deploy -c docker-stack-stats.yml swarmdemo     # crée ou met à jour la pile « swarmdemo »
-docker service ls --filter name=swarmdemo                   # nginx 1/1, stats-api 3/3 (max 3 per node)
+docker service ls --filter name=swarmdemo                   # nginx 1/1, stats-api 3/3 (max 4 per node)
 docker service ps swarmdemo_stats-api                       # état de chaque réplica
 docker service logs swarmdemo_nginx --tail=20               # requêtes vues par nginx, avec le réplica choisi
 curl --noproxy '*' http://localhost:8002/health             # vérifie que l'API répond
@@ -359,7 +359,7 @@ Règles de placement et ressources. Chaque test laisse les réplicas existants e
 
 | Test | Commande | Résultat attendu |
 | --- | --- | --- |
-| Limite de 3 réplicas par nœud | `docker service scale swarmdemo_stats-api=4` | 4ᵉ réplica `Pending` : `no suitable node (max replicas per node limit exceed)` |
+| Limite de 4 réplicas par nœud (3 + 1 place pour `start-first`) | `docker service scale swarmdemo_stats-api=5` | 5ᵉ réplica `Pending` : `no suitable node (max replicas per node limit exceed)` |
 | Réservation impossible | Passer `memory: 128M` à `64G` sous `reservations`, puis `docker stack deploy` | Nouveau réplica `Pending`, anciens réplicas toujours actifs |
 
 Revenir ensuite à `docker service scale swarmdemo_stats-api=3` ou à `128M`.
