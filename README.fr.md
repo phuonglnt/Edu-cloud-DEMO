@@ -195,9 +195,16 @@ Les variables de proxy s'appliquent à toutes les requêtes sortantes, y compris
 
 ## Déploiement avec Docker Swarm
 
-`stats-api` n'est pas dans le fichier Compose : il est déployé comme service Swarm avec `docker-stack-stats.yml`, en 3 réplicas. Les autres services doivent être démarrés avant, avec `docker compose up -d`.
+`stats-api` n'est pas dans le fichier Compose : il est déployé avec `docker-stack-stats.yml`, en 3 réplicas, derrière un reverse proxy **nginx** qui constitue l'unique point d'entrée sur le port 8002. Les autres services doivent être démarrés avant, avec `docker compose up -d`.
 
-Le service Swarm n'est pas sur le réseau Compose. Il atteint donc PostgreSQL et l'assistant par les ports publiés sur l'hôte : `host.docker.internal:5434` et `host.docker.internal:3001`. Sur un serveur Linux, remplacer `host.docker.internal` par l'adresse IP du serveur.
+| Service de la pile `swarmdemo` | Rôle | Publication | Réplicas |
+| --- | --- | --- | --- |
+| `nginx` | Point d'entrée, répartition des requêtes, reprise sur un autre réplica en cas d'échec | Port 8002 en mode `host` | 1 |
+| `stats-api` | API, tableau de bord, quotas et paiements | Non publié ; `endpoint_mode: dnsrr` | 3 |
+
+**Pourquoi nginx.** Le serveur de l'université est un conteneur LXC : Docker ne peut pas y configurer IPVS, dont dépend le routage ingress de Swarm (`Failed to create a new service for vip … operation not permitted`). En mode `dnsrr`, le DNS de Swarm renvoie l'adresse de chaque réplica sain ; nginx les interroge à tour de rôle (`nginx-stats.conf`) et écarte pendant 15 s un réplica qui ne répond pas.
+
+**Un seul fichier pour le local et le serveur.** Les valeurs par défaut de `docker-stack-stats.yml` sont celles du serveur (`10.3.16.187`, PostgreSQL sur 5432, assistant sur 3000, proxy de l'université). En local, les variables `SWARM_DB_HOST`, `SWARM_DB_PORT`, `SWARM_ASSISTANT_URL` et `SWARM_HTTPS_PROXY` du fichier `.env` les remplacent (voir `.env.example`). Sur le serveur, ne pas les définir.
 
 ### Activer Swarm sur la machine
 
@@ -233,14 +240,26 @@ faut les charger avant le déploiement, dans le même terminal. Sinon la clé de
 
 ```bash
 set -a && source .env && set +a                             # charge les variables de .env dans le terminal
-docker stack deploy -c docker-stack-stats.yml swarmdemo     # crée ou met à jour la pile « swarmdemo » à partir du fichier
-docker service ls                                           # liste les services et leurs réplicas (3/3 attendu)
-docker service ps swarmdemo_stats-api                       # état de chaque réplica du service
-docker service logs swarmdemo_stats-api --tail=30           # 30 dernières lignes de journal du service
-curl http://localhost:8002/health                           # vérifie que l'API répond
+echo "${#ASSISTANT_API_KEY} ${#LLM_API_KEY}"                # deux nombres non nuls attendus
 ```
 
-Le service s'appelle `swarmdemo_stats-api` : nom de la pile, puis nom du service dans le fichier.
+Les réplicas de `stats-api` ne sont placés que sur les nœuds étiquetés `educloud=api` (règle de placement). À faire une fois par nœud :
+
+```bash
+docker node update --label-add educloud=api $(docker info -f '{{.Swarm.NodeID}}')
+```
+
+```bash
+docker stack deploy -c docker-stack-stats.yml swarmdemo     # crée ou met à jour la pile « swarmdemo »
+docker service ls --filter name=swarmdemo                   # nginx 1/1, stats-api 3/3 (max 3 per node)
+docker service ps swarmdemo_stats-api                       # état de chaque réplica
+docker service logs swarmdemo_nginx --tail=20               # requêtes vues par nginx, avec le réplica choisi
+curl --noproxy '*' http://localhost:8002/health             # vérifie que l'API répond
+```
+
+Si `swarmdemo_nginx` reste à `0/1` avec `port is already allocated`, un processus `docker-proxy` garde le port 8002 : `systemctl restart docker`, puis redéployer.
+
+Une configuration Swarm est immuable : après une modification de `nginx-stats.conf`, changer le nom de la config (`nginx_conf_v2` → `nginx_conf_v3`) aux deux endroits du fichier stack.
 
 Mise à jour vers une nouvelle image, un réplica après l'autre :
 
@@ -302,34 +321,47 @@ Lecture du résultat : une ligne qui commence par `{"choices":` ou `{"id":` indi
 
 ### Tester Swarm
 
-Mise à l'échelle :
+Chaque mesure de disponibilité envoie 120 requêtes `/health` toutes les 0,5 s (environ 60 s) au point d'entrée :
 
 ```bash
-docker service scale swarmdemo_stats-api=3      # passe à 3 réplicas
-docker service ps swarmdemo_stats-api           # les 3 réplicas doivent être « Running »
-docker service scale swarmdemo_stats-api=1      # revient à 1 réplica
+ok=0; ko=0; for i in $(seq 1 120); do
+  c=$(curl -s --noproxy '*' -o /dev/null -m 2 -w '%{http_code}' http://localhost:8002/health)
+  [ "$c" = "200" ] && ok=$((ok+1)) || ko=$((ko+1)); sleep 0.5; done
+echo "OK=$ok KO=$ko dispo=$(( 100*ok/(ok+ko) ))%"
 ```
 
-Tolérance aux pannes : arrêter un conteneur de force, Swarm en recrée un.
+| Test | Commande, à lancer pendant la mesure dans un second terminal | Résultat attendu |
+| --- | --- | --- |
+| Répartition de charge | Voir ci-dessous | Environ un tiers des requêtes par réplica |
+| Mise à jour progressive | `docker service update --force swarmdemo_stats-api` | 100 % |
+| Panne d'un réplica | `docker kill $(docker ps -q -f name=swarmdemo_stats-api \| head -1)` | Réplica recréé ; 99 à 100 % |
+| Réplica gelé (ne répond plus) | `docker pause $(docker ps -q -f name=swarmdemo_stats-api \| head -1)`, puis `docker unpause …` | 100 % ; nginx réessaie sur un autre réplica puis l'écarte 15 s |
+| Rollback automatique | `docker service update --image ple002/educloud-stats-api:inexistant swarmdemo_stats-api` | Mise à jour annulée, image v3 conservée |
+
+Répartition de charge, vue par nginx (adresse du réplica choisi pour chaque requête) :
 
 ```bash
-docker ps | grep stats-api                      # trouve l'identifiant d'un conteneur du service
-docker kill <CONTAINER_ID>                      # arrête ce conteneur brutalement
-docker service ps swarmdemo_stats-api           # l'ancien est « Failed », un nouveau est « Running »
+for i in $(seq 1 30); do curl -s --noproxy '*' -o /dev/null http://localhost:8002/health; done
+docker service logs swarmdemo_nginx --since 30s | grep -o 'upstream=[0-9.:]*' | sort | uniq -c
 ```
 
-État partagé : avec 3 réplicas, la même requête doit donner le même niveau, quel que soit le réplica qui répond.
+Les requêtes reprises sur un autre réplica apparaissent avec deux adresses, par exemple `upstream=10.0.1.6:8000, 10.0.1.5:8000 ustatus=504, 200`.
+
+Règles de placement et ressources. Chaque test laisse les réplicas existants en marche :
+
+| Test | Commande | Résultat attendu |
+| --- | --- | --- |
+| Limite de 3 réplicas par nœud | `docker service scale swarmdemo_stats-api=4` | 4ᵉ réplica `Pending` : `no suitable node (max replicas per node limit exceed)` |
+| Réservation impossible | Passer `memory: 128M` à `64G` sous `reservations`, puis `docker stack deploy` | Nouveau réplica `Pending`, anciens réplicas toujours actifs |
+
+Revenir ensuite à `docker service scale swarmdemo_stats-api=3` ou à `128M`.
+
+Retirer l'étiquette `educloud=api` du nœud montre aussi l'effet de la contrainte, mais Swarm retire alors **tous** les réplicas du nœud : le service est interrompu jusqu'à la remise de l'étiquette. Après l'avoir remise, `docker service update --force swarmdemo_stats-api` relance les réplicas restés `Pending`.
+
+Arrêter la pile :
 
 ```bash
-for i in 1 2 3 4 5 6; do curl -s http://localhost:8002/api/subscription/<e-mail>; echo; done
-```
-
-Le port 8002 est publié par le routage de Swarm (`"8002:8000"`), qui répartit les requêtes entre les réplicas. Avec `mode: host`, chaque réplica réserverait le port 8002 de la machine : un seul réplica pourrait démarrer par nœud. Les réplicas partagent les niveaux et les paiements, car ils sont enregistrés dans PostgreSQL et non en mémoire.
-
-Arrêter le service Swarm :
-
-```bash
-docker stack rm swarmdemo                       # supprime la pile et ses conteneurs (les données restent dans PostgreSQL)
+docker stack rm swarmdemo                       # supprime nginx et stats-api (les données restent dans PostgreSQL)
 ```
 
 ## Exploitation
