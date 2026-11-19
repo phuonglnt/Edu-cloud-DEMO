@@ -246,7 +246,7 @@ echo "${#ASSISTANT_API_KEY} ${#LLM_API_KEY}"                # two non-zero numbe
 docker node update --label-add educloud=api $(docker info -f '{{.Swarm.NodeID}}')
 ```
 
-The dashboard, the AI report, the tutor and `/docs` are password-protected (user `admin`). Create the file once per machine; it is never committed:
+The dashboard, the AI report, the tutor and `/docs` are password-protected (user `admin`). Create the file once per machine; it is never committed. A Swarm secret is immutable, so regenerating this file requires renaming the secret (`nginx_htpasswd_v3` → `_v4`) in the stack file, even for the same password: `openssl passwd` adds a random salt, so the file changes on every run.
 
 ```bash
 printf 'admin:%s\n' "$(openssl passwd -apr1 "$STATS_ADMIN_PASSWORD")" > nginx-htpasswd

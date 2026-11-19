@@ -249,7 +249,7 @@ Les réplicas de `stats-api` ne sont placés que sur les nœuds étiquetés `edu
 docker node update --label-add educloud=api $(docker info -f '{{.Swarm.NodeID}}')
 ```
 
-Le tableau de bord, le bilan IA, le tuteur et `/docs` sont protégés par un mot de passe (utilisateur `admin`). Créer le fichier une fois par machine ; il n'est jamais versionné :
+Le tableau de bord, le bilan IA, le tuteur et `/docs` sont protégés par un mot de passe (utilisateur `admin`). Créer le fichier une fois par machine ; il n'est jamais versionné. Un secret Swarm étant immuable, régénérer ce fichier impose de renommer le secret (`nginx_htpasswd_v3` → `_v4`) dans le fichier stack, même pour un mot de passe identique : `openssl passwd` ajoute un sel aléatoire, donc le fichier change à chaque génération.
 
 ```bash
 printf 'admin:%s\n' "$(openssl passwd -apr1 "$STATS_ADMIN_PASSWORD")" > nginx-htpasswd

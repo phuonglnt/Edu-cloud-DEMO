@@ -24,7 +24,8 @@ services:
         target: /etc/nginx/conf.d/default.conf
     # Mot de passe du tableau de bord (fichier nginx-htpasswd, jamais versionné)
     secrets:
-      - nginx_htpasswd
+      - source: nginx_htpasswd_v3
+        target: nginx_htpasswd
     deploy:
       replicas: 1
       placement:
@@ -95,6 +96,7 @@ configs:
     file: ./nginx-stats.conf
 
 secrets:
-  # Créer avec : printf 'admin:%s\n' "$(openssl passwd -apr1 '<mot de passe>')" > nginx-htpasswd
-  nginx_htpasswd:
+  # Créer avec : printf 'admin:%s\n' "$(openssl passwd -apr1 "$STATS_ADMIN_PASSWORD")" > nginx-htpasswd
+  # Un secret Swarm est immuable : après un changement de mot de passe, passer à _v2, _v3…
+  nginx_htpasswd_v3:
     file: ./nginx-htpasswd
