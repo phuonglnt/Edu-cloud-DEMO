@@ -249,6 +249,14 @@ Les réplicas de `stats-api` ne sont placés que sur les nœuds étiquetés `edu
 docker node update --label-add educloud=api $(docker info -f '{{.Swarm.NodeID}}')
 ```
 
+Le tableau de bord, le bilan IA, le tuteur et `/docs` sont protégés par un mot de passe (utilisateur `admin`). Créer le fichier une fois par machine ; il n'est jamais versionné :
+
+```bash
+printf 'admin:%s\n' "$(openssl passwd -apr1 "$STATS_ADMIN_PASSWORD")" > nginx-htpasswd
+```
+
+Les routes `/api/subscription/…` et `/api/upgrade` ne répondent qu'aux appels venant du serveur et de ses conteneurs (page « Abonnement » de Moodle, filtre d'Open WebUI) ; depuis un autre poste, elles renvoient 403. `/health` reste ouvert.
+
 ```bash
 docker stack deploy -c docker-stack-stats.yml swarmdemo     # crée ou met à jour la pile « swarmdemo »
 docker service ls --filter name=swarmdemo                   # nginx 1/1, stats-api 3/3 (max 3 per node)

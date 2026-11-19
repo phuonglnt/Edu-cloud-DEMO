@@ -246,6 +246,14 @@ echo "${#ASSISTANT_API_KEY} ${#LLM_API_KEY}"                # two non-zero numbe
 docker node update --label-add educloud=api $(docker info -f '{{.Swarm.NodeID}}')
 ```
 
+The dashboard, the AI report, the tutor and `/docs` are password-protected (user `admin`). Create the file once per machine; it is never committed:
+
+```bash
+printf 'admin:%s\n' "$(openssl passwd -apr1 "$STATS_ADMIN_PASSWORD")" > nginx-htpasswd
+```
+
+The `/api/subscription/…` and `/api/upgrade` routes only answer calls coming from the server and its containers (Moodle "Abonnement" page, Open WebUI filter); from any other machine they return 403. `/health` stays open.
+
 ```bash
 docker stack deploy -c docker-stack-stats.yml swarmdemo     # creates or updates the "swarmdemo" stack
 docker service ls --filter name=swarmdemo                   # nginx 1/1, stats-api 3/3 (max 3 per node)
