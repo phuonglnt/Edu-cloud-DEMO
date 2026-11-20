@@ -1,12 +1,19 @@
+# EduCloud — socle applicatif (Moodle, PostgreSQL, Open WebUI, sync-moodle).
+#
+# Le fichier est prêt pour une machine de développement.
+#   LOCAL   : la ligne est active, laissez-la telle quelle.
+#   SERVEUR : décommentez la ligne et commentez la ligne LOCAL correspondante.
+#
+# stats-api n'est pas ici : il est déployé par Docker Swarm (docker-stack-stats.yml).
+
 services:
   postgres:
     image: postgres:16
     container_name: educloud-postgres
     restart: unless-stopped
     ports:
-      - "5434:5432"     # Edited by Phuong to avoid conflict with local PostgreSQL instance
-    #  - "5432:5432"    # Use this port if your local PostgreSQL instance is not running on port 5432
-      
+      - "5434:5432"     # LOCAL   : 5434 évite un PostgreSQL déjà installé sur la machine
+    # - "5432:5432"     # SERVEUR : port standard
     environment:
       POSTGRES_DB: moodle
       POSTGRES_USER: moodle
@@ -16,9 +23,9 @@ services:
   moodle:
     build:                                         # ajout Phuong
       context: .                                   # ajout Phuong
-#      args:                                        # ajout Phuong
-#        http_proxy: http://cache.univ-pau.fr:3128  # ajout Phuong
-#        https_proxy: http://cache.univ-pau.fr:3128 # ajout Phuong
+#      args:                                        # SERVEUR : proxy de l'université
+#        http_proxy: http://cache.univ-pau.fr:3128  # SERVEUR
+#        https_proxy: http://cache.univ-pau.fr:3128 # SERVEUR
     image: educloud-moodle:4.5.14
     container_name: educloud-moodle
     restart: unless-stopped
@@ -33,9 +40,10 @@ services:
       MOODLE_DB_NAME: moodle
       MOODLE_DB_USER: moodle
       MOODLE_DB_PASSWORD: moodle_password
-#      MOODLE_URL: http://10.3.16.187:8080          # modifié Phuong (avant : http://localhost:8080)
-      MOODLE_URL: http://localhost:8080
-      STATS_API_URL: http://host.docker.internal:8002 # Use this if you already commented out the stats-api service in docker-compose.yml
+      MOODLE_URL: http://localhost:8080              # LOCAL
+#      MOODLE_URL: http://10.3.16.187:8080           # SERVEUR
+      STATS_API_URL: http://host.docker.internal:8002 # LOCAL   : adresse de stats-api vue par la page « Abonnement »
+#      STATS_API_URL: http://10.3.16.187:8002        # SERVEUR
 
 
     volumes:
@@ -45,25 +53,25 @@ services:
   open-webui:
     image: ghcr.io/open-webui/open-webui:main
     ports:
-      - "3001:8080"     # Local : 3001
-    #  - "3000:8080"    # Use 3000 in server university
+      - "3001:8080"     # LOCAL
+    # - "3000:8080"     # SERVEUR
     volumes:
       - open-webui:/app/backend/data
     environment:
       - OPENAI_API_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai
       - OPENAI_API_KEY=${OPENAI_API_KEY}
- #     - HTTPS_PROXY=http://cache.univ-pau.fr:3128
- #     - https_proxy=http://cache.univ-pau.fr:3128
- #     - RAG_EMBEDDING_ENGINE=openai
- #     - RAG_EMBEDDING_MODEL=models/gemini-embedding-001
+#      - HTTPS_PROXY=http://cache.univ-pau.fr:3128  # SERVEUR : proxy de l'université
+#      - https_proxy=http://cache.univ-pau.fr:3128   # SERVEUR
+#      - RAG_EMBEDDING_ENGINE=openai                 # SERVEUR : le proxy bloque le modèle d'indexation par défaut
+#      - RAG_EMBEDDING_MODEL=models/gemini-embedding-001  # SERVEUR
     restart: always
 
   quiz-api:
     build: 
       context: ./quiz-api
-#      args:
-#        http_proxy: http://cache.univ-pau.fr:3128
-#        https_proxy: http://cache.univ-pau.fr:3128
+#      args:                                        # SERVEUR : proxy de l'université
+#        http_proxy: http://cache.univ-pau.fr:3128  # SERVEUR
+#        https_proxy: http://cache.univ-pau.fr:3128 # SERVEUR
     ports:
       - "8001:8000"
     environment:
@@ -76,7 +84,11 @@ services:
     restart: always
 
   sync-moodle:
-    build: ./sync-moodle
+    build:
+      context: ./sync-moodle
+#      args:                                        # SERVEUR : proxy de l'université
+#        http_proxy: http://cache.univ-pau.fr:3128  # SERVEUR
+#        https_proxy: http://cache.univ-pau.fr:3128 # SERVEUR
     environment:
       - DB_HOST=postgres
       - DB_NAME=moodle
@@ -98,7 +110,10 @@ services:
   # ===== FIN AJOUT PHUONG =====
 
 
-  # ===== AJOUT MOHAMMED =====
+  # stats-api n'est PAS lancé par Compose : il tourne dans Docker Swarm, derrière nginx,
+  # sur le port 8002 (voir docker-stack-stats.yml). Laisser ce bloc commenté : décommenté,
+  # il prendrait le port 8002 à nginx (« port is already allocated »).
+  # Il n'est conservé que pour montrer la version d'avant la mise en place de Swarm.
 #   stats-api:
 #     build:
 #       context: ./stats-api

@@ -1,8 +1,8 @@
 # Pile Swarm "swarmdemo" : nginx (point d'entrée, port 8002) + stats-api (3 réplicas).
 #
-# Le même fichier sert en local et sur le serveur de l'université :
-#   - sur le serveur, les valeurs par défaut ci-dessous s'appliquent ;
-#   - en local, les variables SWARM_* du fichier .env les remplacent (voir .env.example).
+# Le même fichier sert en local et sur le serveur : rien à commenter ni décommenter.
+#   SERVEUR : les valeurs par défaut ci-dessous s'appliquent (10.3.16.187, proxy de l'université).
+#   LOCAL   : les variables SWARM_* du fichier .env les remplacent (voir .env.example).
 #
 # Avant de déployer (Swarm ne lit pas .env tout seul) :
 #   set -a && source .env && set +a
@@ -37,17 +37,18 @@ services:
   stats-api:
     image: ple002/educloud-stats-api:v3
     environment:
-      - DB_HOST=${SWARM_DB_HOST:-10.3.16.187}
-      - DB_PORT=${SWARM_DB_PORT:-5432}
+      - DB_HOST=${SWARM_DB_HOST:-10.3.16.187}      # SERVEUR par défaut ; LOCAL via SWARM_DB_HOST
+      - DB_PORT=${SWARM_DB_PORT:-5432}             # SERVEUR par défaut ; LOCAL via SWARM_DB_PORT
       - DB_NAME=moodle
       - DB_USER=moodle
       - DB_PASSWORD=moodle_password
-      - ASSISTANT_URL=${SWARM_ASSISTANT_URL:-http://10.3.16.187:3000}
+      - ASSISTANT_URL=${SWARM_ASSISTANT_URL:-http://10.3.16.187:3000}   # SERVEUR par défaut ; LOCAL via SWARM_ASSISTANT_URL
       - ASSISTANT_API_KEY=${ASSISTANT_API_KEY}
       - LLM_BASE_URL=https://api.groq.com/openai/v1
       - LLM_API_KEY=${LLM_API_KEY}
       - LLM_MODEL=qwen/qwen3.8-27b
-      # Proxy de l'université pour les appels HTTPS sortants (Groq) ; SWARM_HTTPS_PROXY vide = pas de proxy
+      # SERVEUR : proxy de l'université pour les appels HTTPS sortants (Groq).
+      # LOCAL   : mettre SWARM_HTTPS_PROXY= (vide) dans .env pour ne pas passer par le proxy.
       - HTTPS_PROXY=${SWARM_HTTPS_PROXY-http://cache.univ-pau.fr:3128}
       - https_proxy=${SWARM_HTTPS_PROXY-http://cache.univ-pau.fr:3128}
       - NO_PROXY=10.3.16.187,host.docker.internal,open-webui,postgres,localhost,127.0.0.1
