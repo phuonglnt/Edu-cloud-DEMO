@@ -19,7 +19,7 @@ Edu-cloud adds an LLM-based teaching assistant to Moodle, which answers students
 | yPBL cookbook, English version | [`documents/Team_2_EN_yPBL_cookbook.pdf`](documents/Team_2_EN_yPBL_cookbook.pdf) | Same content, in English |
 | ArchiMate model | [`archimate/educloud.xml`](archimate/educloud.xml) | 84 elements and 112 relationships, "Educloud" view linking the business, application and technology layers |
 
-The model uses the ArchiMate Open Exchange format: open it in [Archi](https://www.archimatetool.com/) with *File → Open*, or in any tool that reads this format.
+The model uses the ArchiMate Open Exchange format: open it in [Archi](https://www.archimatetool.com/) with *File → Import*, or in any tool that reads this format.
 
 This README covers installation and operation; the cookbook covers the use cases step by step.
 
