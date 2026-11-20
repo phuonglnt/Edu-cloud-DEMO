@@ -11,6 +11,30 @@ Edu-cloud adds an LLM-based teaching assistant to Moodle, which answers students
 - **A dashboard** tracks usage: number of questions, tier and quota of each user.
 
 
+## Documentation and model
+
+| Document | File | Contents |
+| --- | --- | --- |
+| yPBL cookbook, French version | [`documents/Team_2_FR_yPBL_cookbook.pdf`](documents/Team_2_FR_yPBL_cookbook.pdf) | Six recipes to deploy the platform and check each cloud characteristic, with the commands and the screenshots |
+| yPBL cookbook, English version | [`documents/Team_2_EN_yPBL_cookbook.pdf`](documents/Team_2_EN_yPBL_cookbook.pdf) | Same content, in English |
+| ArchiMate model | [`archimate/educloud.xml`](archimate/educloud.xml) | 84 elements and 112 relationships, "Educloud" view linking the business, application and technology layers |
+
+The model uses the ArchiMate Open Exchange format: open it in [Archi](https://www.archimatetool.com/) with *File → Open*, or in any tool that reads this format.
+
+This README covers installation and operation; the cookbook covers the use cases step by step.
+
+## Where to find the project
+
+| Resource | Address |
+| --- | --- |
+| GitHub repository | <https://github.com/phuonglnt/Edu-cloud-DEMO> |
+| Docker Hub image | <https://hub.docker.com/r/ple002/educloud-stats-api> |
+
+Only `stats-api` is published on Docker Hub, since it is the service deployed by Swarm. The repository is public: `docker pull ple002/educloud-stats-api:v3` works without a Docker Hub account. The `v3` tag is built for `linux/amd64` and `linux/arm64`, so the same image runs on the university server and on an Apple Silicon Mac.
+
+The other services (`moodle`, `sync-moodle`) are built from this repository by `docker compose up -d --build`.
+
+
 ## Services
 
 | Service | Port | Role | Source |

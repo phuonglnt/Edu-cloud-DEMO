@@ -11,6 +11,30 @@ Edu-cloud ajoute à Moodle un assistant pédagogique basé sur un LLM, qui répo
 - **Un tableau de bord** suit l'utilisation : nombre de questions, niveau et quota de chaque utilisateur.
 
 
+## Documentation et modèle
+
+| Document | Fichier | Contenu |
+| --- | --- | --- |
+| Cookbook yPBL, version française | [`documents/Team_2_FR_yPBL_cookbook.pdf`](documents/Team_2_FR_yPBL_cookbook.pdf) | Six recettes pour déployer la plateforme et vérifier chaque caractéristique du cloud, avec les commandes et les captures |
+| Cookbook yPBL, version anglaise | [`documents/Team_2_EN_yPBL_cookbook.pdf`](documents/Team_2_EN_yPBL_cookbook.pdf) | Même contenu, en anglais |
+| Modèle ArchiMate | [`archimate/educloud.xml`](archimate/educloud.xml) | 84 éléments et 112 relations, vue « Educloud » reliant les couches métier, applicative et technologique |
+
+Le modèle est au format ArchiMate Open Exchange : il s'ouvre dans [Archi](https://www.archimatetool.com/) par *File → Open*, ou dans tout outil qui lit ce format.
+
+Ce README décrit l'installation et l'exploitation ; le cookbook décrit les cas d'utilisation pas à pas.
+
+## Où trouver le projet
+
+| Ressource | Adresse |
+| --- | --- |
+| Dépôt GitHub | <https://github.com/phuonglnt/Edu-cloud-DEMO> |
+| Image Docker Hub | <https://hub.docker.com/r/ple002/educloud-stats-api> |
+
+Seul `stats-api` est publié sur Docker Hub, car c'est le service déployé par Swarm. Le dépôt est public : `docker pull ple002/educloud-stats-api:v3` fonctionne sans compte Docker Hub. Le tag `v3` est construit pour `linux/amd64` et `linux/arm64`, donc la même image tourne sur le serveur de l'université et sur un Mac Apple Silicon.
+
+Les autres services (`moodle`, `sync-moodle`) sont construits à partir de ce dépôt par `docker compose up -d --build`.
+
+
 ## Services
 
 | Service | Port | Rôle | Origine |
